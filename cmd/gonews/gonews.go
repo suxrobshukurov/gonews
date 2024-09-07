@@ -75,6 +75,7 @@ func main() {
 		}
 	}()
 
+	log.Println("started server: http://localhost:80")
 	err = http.ListenAndServe(":80", srv.api.Router())
 	if err != nil {
 		log.Fatal("failed to start server: ", err)
