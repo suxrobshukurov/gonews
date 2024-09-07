@@ -1,93 +1,47 @@
 package postgres
 
 import (
-	"gonews/pkg/storage"
-	"reflect"
+	"math/rand"
+	"strconv"
 	"testing"
+	"time"
+
+	"github.com/suxrobshukurov/gonews/pkg/storage"
 )
 
-func TestStore_AddPost(t *testing.T) {
-	type args struct {
-		p storage.Post
-	}
-	tests := []struct {
-		name    string
-		s       *Store
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.s.AddPost(tt.args.p); (err != nil) != tt.wantErr {
-				t.Errorf("Store.AddPost() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+func TestNew(t *testing.T) {
+	_, err := New()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestStore_DeletePost(t *testing.T) {
-	type args struct {
-		p storage.Post
+func TestDB_Posts(t *testing.T) {
+	db, err := New()
+	if err != nil {
+		t.Fatal(err)
 	}
-	tests := []struct {
-		name    string
-		s       *Store
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.s.DeletePost(tt.args.p); (err != nil) != tt.wantErr {
-				t.Errorf("Store.DeletePost() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func TestStore_UpdatePost(t *testing.T) {
-	type args struct {
-		p storage.Post
+	posts := []storage.Post{
+		{
+			Title: "Test Post",
+			Link:  strconv.Itoa(r.Intn(1_000_000)),
+		},
+		{
+			Title: "Test Post",
+			Link:  strconv.Itoa(r.Intn(1_000_000)),
+		},
 	}
-	tests := []struct {
-		name    string
-		s       *Store
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.s.UpdatePost(tt.args.p); (err != nil) != tt.wantErr {
-				t.Errorf("Store.UpdatePost() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
 
-func TestStore_Posts(t *testing.T) {
-	tests := []struct {
-		name    string
-		s       *Store
-		want    []storage.Post
-		wantErr bool
-	}{
-		// TODO: Add test cases.
+	err = db.AddPosts(posts)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.s.Posts()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Store.Posts() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Store.Posts() = %v, want %v", got, tt.want)
-			}
-		})
+	posts, err = db.Posts(2)
+
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Log(posts)
 }

@@ -2,89 +2,86 @@ package postgres
 
 import (
 	"context"
-	"gonews/pkg/storage"
+	"errors"
+	"fmt"
+	"os"
 
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/subosito/gotenv"
+	"github.com/suxrobshukurov/gonews/pkg/storage"
 )
 
-type Store struct {
-	db *pgxpool.Pool
+func init() {
+	gotenv.Load()
 }
 
-func New(constr string) (*Store, error) {
-	db, err := pgxpool.Connect(context.Background(), constr)
+// DB represents a storage
+type DB struct {
+	pool *pgxpool.Pool
+}
+
+// New creates a new postgres storage
+func New() (*DB, error) {
+	connstr := os.Getenv("connstr")
+
+	if connstr == "" {
+		return nil, errors.New("empty connstr")
+	}
+
+	p, err := pgxpool.Connect(context.Background(), connstr)
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{
-		db: db,
+	db := DB{
+		pool: p,
 	}
-	return s, nil
+	return &db, nil
 }
 
-func (s *Store) Posts() ([]storage.Post, error) {
-	rows, err := s.db.Query(context.Background(), `
-		SELECT 
-			id, 
-			author_id, 
-			title, 
-			content, 
-			created_at
+// Posts returns a list of posts from the database
+// n is the number of posts to return
+func (db *DB) Posts(n int) ([]storage.Post, error) {
+	if n == 0 {
+		n = 10
+	}
+	rows, err := db.pool.Query(context.Background(), `
+		SELECT id, title, content, pub_time, link
 		FROM posts
-		ORDER BY id
-	`)
+		ORDER BY pub_time DESC
+		LIMIT $1
+	`, n)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't get posts from db: %w", err)
 	}
 
 	var posts []storage.Post
-
 	for rows.Next() {
-		var p storage.Post
-
-		err = rows.Scan(&p.ID, &p.AuthorID, &p.Title, &p.Content, &p.CreatedAt)
-		if err != nil {
-			return nil, err
+		var post storage.Post
+		if err := rows.Scan(&post.ID, &post.Title, &post.Content, &post.PubTime, &post.Link); err != nil {
+			return nil, fmt.Errorf("can't scan post: %w", err)
 		}
-
-		posts = append(posts, p)
+		posts = append(posts, post)
 	}
 
 	return posts, nil
 }
 
-func (s *Store) AddPost(p storage.Post) error {
-	_, err := s.db.Exec(context.Background(), `
-		INSERT INTO posts (author_id, title, content, created_at)
-		VALUES ($1, $2, $3, $4)
-	`,
-		p.AuthorID, p.Title, p.Content, p.CreatedAt,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Store) DeletePost(p storage.Post) error {
-	_, err := s.db.Exec(context.Background(), `
-		DELETE FROM posts
-		WHERE id = $1
-	`, p.ID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Store) UpdatePost(p storage.Post) error {
-	_, err := s.db.Exec(context.Background(), `
-		UPDATE posts
-		SET title = $1, content = $2
-		WHERE id = $3
-	`, p.Title, p.Content, p.ID)
-	if err != nil {
-		return err
+// AddPosts adds a list of posts to the database
+func (db *DB) AddPosts(posts []storage.Post) error {
+	for _, p := range posts {
+		_, err := db.pool.Exec(context.Background(), `
+				INSERT INTO posts ( title, content, pub_time, link)
+				VALUES ( $1, $2, $3, $4)
+				ON CONFLICT (link) DO UPDATE SET title = EXCLUDED.title, content = EXCLUDED.content, pub_time = EXCLUDED.pub_time
+		`,
+			p.Title,
+			p.Content,
+			p.PubTime,
+			p.Link,
+		)
+		if err != nil {
+			return fmt.Errorf("can't insert post in db: %w", err)
+		}
 	}
 	return nil
 }

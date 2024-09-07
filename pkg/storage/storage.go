@@ -1,17 +1,16 @@
 package storage
 
+// Post represents a single post
 type Post struct {
-	ID          int
-	AuthorID    int
-	Title       string
-	Content     string
-	CreatedAt   int64
-	PublishedAt int64
+	ID      int
+	Title   string
+	Content string
+	PubTime int64
+	Link    string
 }
 
+// Interface represents a storage
 type Interface interface {
-	Posts() ([]Post, error) // возвращает все посты
-	AddPost(Post) error     // добавляет пост
-	UpdatePost(Post) error  // обновляет пост
-	DeletePost(Post) error  // удаляет пост
+	Posts(int) ([]Post, error)
+	AddPosts([]Post) error
 }

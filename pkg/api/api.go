@@ -2,98 +2,64 @@ package api
 
 import (
 	"encoding/json"
-	"gonews/pkg/storage"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/suxrobshukurov/gonews/pkg/storage"
 )
 
-type Api struct {
-	db     storage.Interface
-	router *mux.Router
+// API struct
+type API struct {
+	r  *mux.Router
+	db storage.Interface
 }
 
-func New(db storage.Interface) *Api {
-	api := &Api{
-		db: db,
-	}
-	api.router = mux.NewRouter()
+// New creates a new API
+func New(db storage.Interface) *API {
+	api := API{}
+	api.db = db
+	api.r = mux.NewRouter()
 	api.endpoints()
-	return api
+	return &api
 }
 
-// Регистрация обработчиков API.
-func (api *Api) endpoints() {
-	api.router.HandleFunc("/posts", api.postsHandler).Methods(http.MethodGet, http.MethodOptions)
-	api.router.HandleFunc("/posts", api.addPostsHandler).Methods(http.MethodPost, http.MethodOptions)
-	api.router.HandleFunc("/posts", api.updatePostHandler).Methods(http.MethodPut, http.MethodOptions)
-	api.router.HandleFunc("/posts", api.deletePostHandler).Methods(http.MethodDelete, http.MethodOptions)
+// Router returns the router to use
+// as the HTTP server argument.
+func (api *API) Router() *mux.Router {
+	return api.r
 }
 
-// Получение маршрутизатора запросов.
-// Требуется для передачи маршрутизатора веб-серверу.
-func (api *Api) Router() *mux.Router {
-	return api.router
+// Registration of API methods in the request router.
+func (api *API) endpoints() {
+	// get n number of posts
+	api.r.HandleFunc("/news/{n}", api.postsHandler).Methods(http.MethodGet, http.MethodOptions)
+	// web app
+	api.r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webapp"))))
 }
 
-// Получить все публикации
-func (api *Api) postsHandler(w http.ResponseWriter, r *http.Request) {
-	posts, err := api.db.Posts()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	bytes, err := json.Marshal(posts)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(bytes)
-}
+// postsHandler returns a list of posts
+func (api *API) postsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-// Добавить публикации
-func (api *Api) addPostsHandler(w http.ResponseWriter, r *http.Request) {
-	var p storage.Post
-
-	err := json.NewDecoder(r.Body).Decode(&p)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if r.Method == http.MethodOptions {
 		return
 	}
-	err = api.db.AddPost(p)
+	s := mux.Vars(r)["n"]
+	n, err := strconv.Atoi(s)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-}
-
-func (api *Api) updatePostHandler(w http.ResponseWriter, r *http.Request) {
-	var p storage.Post
-	err := json.NewDecoder(r.Body).Decode(&p)
+	posts, err := api.db.Posts(n)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = api.db.UpdatePost(p)
+	err = json.NewEncoder(w).Encode(posts)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-}
-
-func (api *Api) deletePostHandler(w http.ResponseWriter, r *http.Request) {
-	var p storage.Post
-	err := json.NewDecoder(r.Body).Decode(&p)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = api.db.DeletePost(p)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }
