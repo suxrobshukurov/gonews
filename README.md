@@ -29,7 +29,7 @@ Gonews — это веб-приложение на Go, которое перио
 ### 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/yourusername/gonews.git
+git clone https://github.com/suxrobshukurov/gonews.git
 cd gonews
 ```
 
